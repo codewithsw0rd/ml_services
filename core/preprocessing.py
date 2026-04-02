@@ -41,7 +41,7 @@ def prepare_image(img: np.ndarray) -> np.ndarray:
     
     feature_vec = hog(
         equalised,
-        orientation=HOG_ORIENTATION,
+        orientations=HOG_ORIENTATION,
         pixels_per_cell=HOG_PIXELS_PER_CELL,
         cells_per_block=HOG_CELLS_PER_BLOCK,
         block_norm="L2-Hys",

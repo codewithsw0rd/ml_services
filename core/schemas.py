@@ -27,3 +27,17 @@ class RegisterEmbeddingResponse(BaseModel):
     status : str
     message : str
     
+
+class DetectionResult(BaseModel):
+    """Single face detection result"""
+    student_id: Optional[str] = None
+    confidence: float
+    distance: float
+
+
+class ContinuousDetectionResponse(BaseModel):
+    """Response for continuous face detection endpoint.
+    Returns list of all detected faces with their matches."""
+    detections: list[DetectionResult]
+    total_faces_detected: int
+    status: str  # "success", "no_faces", "no_matches"

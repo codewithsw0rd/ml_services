@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
-
+from core.schemas import AttendanceResponse, RegisterEmbeddingResponse, DetectionResult, ContinuousDetectionResponse
 from core.preprocessing import prepare_image, calculate_face_quality
 from core.knn import find_match
 from core.schemas import AttendanceResponse, RegisterEmbeddingResponse
@@ -165,3 +165,107 @@ async def process_attendance(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+@app.post("/continuous-detection", response_model=ContinuousDetectionResponse)
+async def continuous_detection(
+    image: UploadFile = File(...),
+    session_id: int = 0,
+    stored_vectors: str = "",   # JSON-encoded list of lists
+    labels: str = "",           # JSON-encoded list of student_id strings
+):
+    """
+    Continuous real-time face detection endpoint.
+    Detects ALL faces in frame and matches each against stored embeddings.
+
+    Django sends:
+        - image file (multipart)
+        - stored_vectors: JSON array of shape (N, D)
+        - labels:         JSON array of N student_id strings
+
+    Process:
+        1. Decode image
+        2. Detect ALL faces in frame (not just largest)
+        3. For each face: extract HOG features
+        4. For each face: run KNN matching against stored embeddings
+        5. Return list of all detected faces with matches above threshold
+        6. Filter out low-confidence matches (distance > 0.55)
+
+    Returns:
+        ContinuousDetectionResponse with list of detections
+    """
+    import json
+    
+    # ── Parse stored data sent by Django ─────────────────────────────
+    try:
+        stored_vecs_list = json.loads(stored_vectors) if stored_vectors else []
+        labels_list      = json.loads(labels)         if labels         else []
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=422, detail="Invalid JSON in stored_vectors or labels")
+    
+    # ── Decode uploaded image ─────────────────────────────────────────
+    image_bytes = await image.read()
+    
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Image file is empty. Please upload a valid image.")
+    
+    np_arr = np.frombuffer(image_bytes, np.uint8)
+    
+    if len(np_arr) == 0:
+        raise HTTPException(status_code=400, detail="Could not read image data. File may be corrupted.")
+    
+    img_bgr = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+    if img_bgr is None:
+        raise HTTPException(status_code=400, detail="Could not decode image. File may not be a valid image format (JPEG, PNG, etc.)")
+
+    # ── Face detection (Haar cascade — detect ALL faces) ──────────────
+    gray_full = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+    faces = cascade.detectMultiScale(
+        gray_full,
+        scaleFactor=1.1,
+        minNeighbors=5,
+        minSize=(60, 60),
+    )
+
+    # If no faces detected, return empty list
+    if len(faces) == 0:
+        return ContinuousDetectionResponse(
+            detections=[],
+            total_faces_detected=0,
+            status="no_faces",
+        )
+
+    # ── Process each detected face ────────────────────────────────────
+    detections = []
+    stored_matrix = np.array(stored_vecs_list, dtype=np.float64) if stored_vecs_list else None
+    
+    for x, y, w, h in faces:
+        face_crop = img_bgr[y : y + h, x : x + w]
+        
+        # ── Feature extraction ────────────────────────────────────
+        live_vec = prepare_image(face_crop)  # shape: (D,)
+        
+        # ── KNN matching ──────────────────────────────────────────
+        if stored_matrix is not None and len(stored_vecs_list) > 0:
+            result = find_match(live_vec, stored_matrix, labels_list, k=3)
+            
+            # Only include if student was identified (status == 'identified')
+            # and distance is below threshold (typically 0.55)
+            if result.get('status') == 'identified' and result.get('distance_to_nearest', float('inf')) <= 0.55:
+                detections.append(
+                    DetectionResult(
+                        student_id=result.get('student_id'),
+                        confidence=result.get('confidence', 0.0),
+                        distance=result.get('distance_to_nearest', 0.0),
+                    )
+                )
+
+    # Return response
+    return ContinuousDetectionResponse(
+        detections=detections,
+        total_faces_detected=len(faces),
+        status="success" if detections else "no_matches",
+    )

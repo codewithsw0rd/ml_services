@@ -41,3 +41,4 @@ class ContinuousDetectionResponse(BaseModel):
     detections: list[DetectionResult]
     total_faces_detected: int
     status: str  # "success", "no_faces", "no_matches"
+    nearest_distance: Optional[float] = None

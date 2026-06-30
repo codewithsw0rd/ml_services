@@ -39,8 +39,11 @@ def prepare_image(img: np.ndarray) -> np.ndarray:
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     equalised = clahe.apply(resized)
     
+    # Mild denoise before feature extraction — helps compressed webcam JPEGs.
+    denoised = cv2.bilateralFilter(equalised, d=5, sigmaColor=50, sigmaSpace=50)
+    
     feature_vec = hog(
-        equalised,
+        denoised,
         orientations=HOG_ORIENTATION,
         pixels_per_cell=HOG_PIXELS_PER_CELL,
         cells_per_block=HOG_CELLS_PER_BLOCK,

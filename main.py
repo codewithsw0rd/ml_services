@@ -95,7 +95,7 @@ async def process_attendance(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "1.1.0", "matcher": "per_student_min"}
 
 
 @app.post("/continuous-detection", response_model=ContinuousDetectionResponse)
@@ -126,16 +126,27 @@ async def continuous_detection(
             nearest_distance=None,
         )
 
+    if not stored_vecs_list or not labels_list:
+        return ContinuousDetectionResponse(
+            detections=[],
+            total_faces_detected=len(faces),
+            status="no_stored_vectors",
+            nearest_distance=None,
+        )
+
+    if len(stored_vecs_list) != len(labels_list):
+        raise HTTPException(
+            status_code=422,
+            detail="stored_vectors and labels must have the same length",
+        )
+
     detections = []
     nearest_distance = None
-    stored_matrix = np.array(stored_vecs_list, dtype=np.float64) if stored_vecs_list else None
+    stored_matrix = np.array(stored_vecs_list, dtype=np.float64)
 
     for x, y, w, h in faces:
         face_crop = crop_face(img_bgr, x, y, w, h)
         live_vec = prepare_image(face_crop)
-
-        if stored_matrix is None or len(stored_vecs_list) == 0:
-            continue
 
         result = find_best_student_match(live_vec, stored_matrix, labels_list)
         distance = result.get("distance_to_nearest", float("inf"))

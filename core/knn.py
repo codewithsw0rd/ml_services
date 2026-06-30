@@ -6,7 +6,7 @@ from .distance import calculate_euclidean_batch
 DISTANCE_THRESHOLD = 0.55
 
 # Live webcam stream — slightly more tolerant for lighting/angle drift.
-CONTINUOUS_DISTANCE_THRESHOLD = 0.62
+CONTINUOUS_DISTANCE_THRESHOLD = 0.68
 
 
 def find_match(

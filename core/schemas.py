@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 class AttendanceRequest(BaseModel):
     """
@@ -28,17 +28,30 @@ class RegisterEmbeddingResponse(BaseModel):
     message : str
     
 
+class FaceBox(BaseModel):
+    """Bounding box for a detected face (in original image coordinates)."""
+    x: int
+    y: int
+    w: int
+    h: int
+    status: str  # "identified" | "unknown" | "ambiguous"
+    student_id: Optional[str] = None
+    confidence: float = 0.0
+
+
 class DetectionResult(BaseModel):
     """Single face detection result"""
     student_id: Optional[str] = None
     confidence: float
     distance: float
+    bbox: Optional[FaceBox] = None
 
 
 class ContinuousDetectionResponse(BaseModel):
     """Response for continuous face detection endpoint.
     Returns list of all detected faces with their matches."""
-    detections: list[DetectionResult]
+    detections: List[DetectionResult]
     total_faces_detected: int
     status: str  # "success", "no_faces", "no_matches"
     nearest_distance: Optional[float] = None
+    faces: List[FaceBox] = []  # all detected face bboxes with their match status

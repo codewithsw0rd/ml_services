@@ -9,10 +9,11 @@ from core.schemas import (
     RegisterEmbeddingResponse,
     DetectionResult,
     ContinuousDetectionResponse,
+    FaceBox,
 )
 from core.preprocessing import prepare_image, calculate_face_quality, prepare_image_flip_pair
 from core.knn import find_match, find_best_student_match, CONTINUOUS_DISTANCE_THRESHOLD
-from core.face_detection import detect_faces, extract_largest_face
+from core.face_detection import detect_faces, extract_largest_face, crop_face
 
 app = FastAPI(title="Face Recognition ML Service", version="1.2.1")
 
@@ -106,7 +107,7 @@ async def continuous_detection(
     stored_vectors: str = Form(""),
     labels: str = Form(""),
 ):
-    """Detect the largest face in a live frame and match against stored embeddings."""
+    """Detect all faces in a live frame and match each against stored embeddings."""
     try:
         stored_vecs_list = json.loads(stored_vectors) if stored_vectors else []
         labels_list = json.loads(labels) if labels else []
@@ -122,14 +123,22 @@ async def continuous_detection(
             total_faces_detected=0,
             status="no_faces",
             nearest_distance=None,
+            faces=[],
         )
 
     if not stored_vecs_list or not labels_list:
+        # Return bboxes without matches so we can still draw red boxes
+        raw_boxes = [
+            FaceBox(x=int(x), y=int(y), w=int(w), h=int(h),
+                    status="unknown", student_id=None, confidence=0.0)
+            for (x, y, w, h) in faces
+        ]
         return ContinuousDetectionResponse(
             detections=[],
             total_faces_detected=len(faces),
             status="no_stored_vectors",
             nearest_distance=None,
+            faces=raw_boxes,
         )
 
     if len(stored_vecs_list) != len(labels_list):
@@ -138,25 +147,53 @@ async def continuous_detection(
             detail="stored_vectors and labels must have the same length",
         )
 
-    face_crop = extract_largest_face(img_bgr)
-    live_vecs = prepare_image_flip_pair(face_crop)
     stored_matrix = np.array(stored_vecs_list, dtype=np.float64)
-    result = find_best_student_match(live_vecs, stored_matrix, labels_list)
-    distance = result.get("distance_to_nearest", float("inf"))
 
-    detections = []
-    if result.get("status") == "identified" and distance <= CONTINUOUS_DISTANCE_THRESHOLD:
-        detections.append(
-            DetectionResult(
-                student_id=result.get("student_id"),
-                confidence=result.get("confidence", 0.0),
-                distance=distance,
+    # ── Per-face processing ────────────────────────────────────────────────
+    detections: list[DetectionResult] = []
+    face_boxes: list[FaceBox] = []
+    overall_nearest = float("inf")
+
+    for (x, y, w, h) in faces:
+        face_crop = crop_face(img_bgr, x, y, w, h)
+        if face_crop is None or face_crop.size == 0:
+            face_boxes.append(
+                FaceBox(x=int(x), y=int(y), w=int(w), h=int(h),
+                        status="unknown", student_id=None, confidence=0.0)
             )
+            continue
+
+        live_vecs = prepare_image_flip_pair(face_crop)
+        result = find_best_student_match(live_vecs, stored_matrix, labels_list)
+        distance = result.get("distance_to_nearest", float("inf"))
+        status = result.get("status", "unknown")  # "identified"|"unknown"|"ambiguous"
+        student_id = result.get("student_id")
+        confidence = result.get("confidence", 0.0)
+
+        overall_nearest = min(overall_nearest, distance)
+
+        face_box = FaceBox(
+            x=int(x), y=int(y), w=int(w), h=int(h),
+            status=status,
+            student_id=student_id,
+            confidence=round(confidence, 4),
         )
+        face_boxes.append(face_box)
+
+        if status == "identified" and distance <= CONTINUOUS_DISTANCE_THRESHOLD:
+            detections.append(
+                DetectionResult(
+                    student_id=student_id,
+                    confidence=confidence,
+                    distance=distance,
+                    bbox=face_box,
+                )
+            )
 
     return ContinuousDetectionResponse(
         detections=detections,
         total_faces_detected=len(faces),
         status="success" if detections else "no_matches",
-        nearest_distance=round(distance, 6) if distance != float("inf") else None,
+        nearest_distance=round(overall_nearest, 6) if overall_nearest != float("inf") else None,
+        faces=face_boxes,
     )

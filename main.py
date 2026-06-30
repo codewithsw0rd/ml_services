@@ -226,8 +226,8 @@ async def continuous_detection(
     faces = cascade.detectMultiScale(
         gray_full,
         scaleFactor=1.1,
-        minNeighbors=5,
-        minSize=(60, 60),
+        minNeighbors=4,
+        minSize=(40, 40),
     )
 
     # If no faces detected, return empty list

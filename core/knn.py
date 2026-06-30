@@ -6,7 +6,7 @@ from .distance import calculate_euclidean_batch
 DISTANCE_THRESHOLD = 0.55
 
 # Live webcam stream — tolerant for lighting/angle/compression drift.
-CONTINUOUS_DISTANCE_THRESHOLD = 0.78
+CONTINUOUS_DISTANCE_THRESHOLD = 0.68
 
 # When multiple students are enrolled, require this gap between 1st and 2nd best.
 MIN_STUDENT_MARGIN = 0.04

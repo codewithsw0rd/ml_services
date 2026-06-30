@@ -93,7 +93,7 @@ async def process_attendance(
 async def health():
     return {
         "status": "ok",
-        "version": "1.2.1",
+        "version": "1.2.2",
         "matcher": "per_student_min_flip",
         "frame_width": 640,
         "threshold": CONTINUOUS_DISTANCE_THRESHOLD,

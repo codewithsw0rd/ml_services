@@ -10,11 +10,11 @@ from core.schemas import (
     DetectionResult,
     ContinuousDetectionResponse,
 )
-from core.preprocessing import prepare_image, calculate_face_quality
+from core.preprocessing import prepare_image, calculate_face_quality, prepare_image_flip_pair
 from core.knn import find_match, find_best_student_match, CONTINUOUS_DISTANCE_THRESHOLD
 from core.face_detection import detect_faces, extract_largest_face
 
-app = FastAPI(title="Face Recognition ML Service", version="1.2.0")
+app = FastAPI(title="Face Recognition ML Service", version="1.2.1")
 
 
 def _decode_image(image_bytes: bytes) -> np.ndarray:
@@ -92,9 +92,10 @@ async def process_attendance(
 async def health():
     return {
         "status": "ok",
-        "version": "1.2.0",
-        "matcher": "per_student_min",
+        "version": "1.2.1",
+        "matcher": "per_student_min_flip",
         "frame_width": 640,
+        "threshold": CONTINUOUS_DISTANCE_THRESHOLD,
     }
 
 
@@ -138,9 +139,9 @@ async def continuous_detection(
         )
 
     face_crop = extract_largest_face(img_bgr)
-    live_vec = prepare_image(face_crop)
+    live_vecs = prepare_image_flip_pair(face_crop)
     stored_matrix = np.array(stored_vecs_list, dtype=np.float64)
-    result = find_best_student_match(live_vec, stored_matrix, labels_list)
+    result = find_best_student_match(live_vecs, stored_matrix, labels_list)
     distance = result.get("distance_to_nearest", float("inf"))
 
     detections = []

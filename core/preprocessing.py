@@ -59,6 +59,11 @@ def prepare_image(img: np.ndarray) -> np.ndarray:
     return feature_vec
 
 
+def prepare_image_flip_pair(img: np.ndarray) -> list[np.ndarray]:
+    """Original + horizontally flipped embeddings for webcam mirror tolerance."""
+    return [prepare_image(img), prepare_image(cv2.flip(img, 1))]
+
+
 def calculate_face_quality(face_crop: np.ndarray) -> float:
     """
     Calculate face image quality score (0-1).

@@ -5,8 +5,11 @@ from .distance import calculate_euclidean_batch
 # Static single-photo attendance — keep stricter.
 DISTANCE_THRESHOLD = 0.55
 
-# Live webcam stream — slightly more tolerant for lighting/angle drift.
-CONTINUOUS_DISTANCE_THRESHOLD = 0.68
+# Live webcam stream — tolerant for lighting/angle/compression drift.
+CONTINUOUS_DISTANCE_THRESHOLD = 0.78
+
+# When multiple students are enrolled, require this gap between 1st and 2nd best.
+MIN_STUDENT_MARGIN = 0.04
 
 
 def find_match(
@@ -61,7 +64,7 @@ def find_match(
 
 
 def find_best_student_match(
-    live_vec: np.ndarray,
+    live_vec,
     stored_vecs: np.ndarray,
     labels: list[str],
     threshold: float = CONTINUOUS_DISTANCE_THRESHOLD,
@@ -69,9 +72,8 @@ def find_best_student_match(
     """
     Match a live face against enrolled students.
 
-    Instead of flat k-NN across every stored photo, compute the minimum
-    distance to each student's embeddings and pick the closest student.
-    This is more reliable when each student has multiple registration photos.
+    Accepts one embedding vector or a list of variants (e.g. original + flipped).
+    Uses the minimum distance to each student's stored photos.
     """
     if len(stored_vecs) == 0:
         return {
@@ -81,15 +83,24 @@ def find_best_student_match(
             "status": "no_enrolled_students",
         }
 
+    if isinstance(live_vec, list):
+        live_vectors = live_vec
+    else:
+        live_vectors = [live_vec]
+
     stored_matrix = np.array(stored_vecs)
     per_student: dict[str, float] = {}
 
     for student_id in dict.fromkeys(labels):
         indices = [i for i, label in enumerate(labels) if label == student_id]
         student_vecs = stored_matrix[indices]
-        per_student[student_id] = float(np.min(
-            calculate_euclidean_batch(live_vec, student_vecs)
-        ))
+        best_for_student = float("inf")
+        for vector in live_vectors:
+            best_for_student = min(
+                best_for_student,
+                float(np.min(calculate_euclidean_batch(vector, student_vecs))),
+            )
+        per_student[student_id] = best_for_student
 
     ranked = sorted(per_student.items(), key=lambda item: item[1])
     best_student, best_distance = ranked[0]
@@ -103,7 +114,14 @@ def find_best_student_match(
             "status": "unknown",
         }
 
-    # Higher confidence when clearly closer than the runner-up and well below threshold.
+    if len(ranked) > 1 and (second_distance - best_distance) < MIN_STUDENT_MARGIN:
+        return {
+            "student_id": None,
+            "confidence": 0.0,
+            "distance_to_nearest": round(best_distance, 6),
+            "status": "ambiguous",
+        }
+
     margin = second_distance - best_distance if np.isfinite(second_distance) else 0.2
     distance_score = max(0.0, 1.0 - (best_distance / threshold))
     margin_score = min(1.0, margin / 0.15)

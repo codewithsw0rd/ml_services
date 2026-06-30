@@ -1,7 +1,7 @@
 import io
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from core.schemas import AttendanceResponse, RegisterEmbeddingResponse, DetectionResult, ContinuousDetectionResponse
 from core.preprocessing import prepare_image, calculate_face_quality
@@ -81,9 +81,9 @@ async def register_embedding(
 @app.post("/process-attendance", response_model=AttendanceResponse)
 async def process_attendance(
     image: UploadFile = File(...),
-    session_id: int = 0,
-    stored_vectors: str = "",   # JSON-encoded list of lists from Django
-    labels: str = "",           # JSON-encoded list of student_id strings
+    session_id: str = Form(""),
+    stored_vectors: str = Form(""),   # JSON-encoded list of lists from Django
+    labels: str = Form(""),           # JSON-encoded list of student_id strings
 ):
     """
     End-to-end attendance pipeline.
@@ -169,9 +169,9 @@ async def health():
 @app.post("/continuous-detection", response_model=ContinuousDetectionResponse)
 async def continuous_detection(
     image: UploadFile = File(...),
-    session_id: int = 0,
-    stored_vectors: str = "",   # JSON-encoded list of lists
-    labels: str = "",           # JSON-encoded list of student_id strings
+    session_id: str = Form(""),
+    stored_vectors: str = Form(""),   # JSON-encoded list of lists
+    labels: str = Form(""),           # JSON-encoded list of student_id strings
 ):
     """
     Continuous real-time face detection endpoint.

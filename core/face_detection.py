@@ -1,5 +1,10 @@
 """
-Shared face detection helpers used by registration and attendance endpoints.
+Shared face detection helpers using Haar Cascade with edge detection + morphological preprocessing.
+
+Algorithms from Computer Science Syllabus:
+- Edge Detection: Canny edge detector
+- Morphological Operations: Erosion, dilation for noise reduction
+- Face Detection: Haar Cascade Classifier (Viola-Jones)
 """
 import cv2
 import numpy as np
@@ -17,6 +22,9 @@ _DETECT_PARAMS = {
 
 TARGET_FRAME_WIDTH = 640
 
+# ── Morphological kernel for edge cleanup ────────────────────────────────────
+MORPH_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+
 
 def normalize_frame_size(img_bgr: np.ndarray, target_width: int = TARGET_FRAME_WIDTH) -> np.ndarray:
     """Resize incoming frames to the same width used by the live attendance webcam."""
@@ -31,16 +39,58 @@ def normalize_frame_size(img_bgr: np.ndarray, target_width: int = TARGET_FRAME_W
     )
 
 
-def _prepare_gray(img_bgr: np.ndarray) -> np.ndarray:
+def _prepare_gray_with_edge_enhancement(img_bgr: np.ndarray) -> np.ndarray:
+    """
+    Preprocess grayscale image with edge detection + morphology for better face detection.
+    
+    Pipeline:
+    1. Grayscale conversion
+    2. CLAHE for contrast enhancement
+    3. Canny edge detection
+    4. Morphological operations (dilation → erosion) to clean edges
+    5. Return edge-enhanced grayscale for Haar Cascade
+    
+    This helps Haar Cascade find faces in challenging conditions:
+    - Poor lighting (CLAHE handles this)
+    - Cluttered backgrounds (edges isolate face structure)
+    - Noise (morphology cleans spurious edges)
+    """
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-    # Use CLAHE to match the preprocessing pipeline used for HOG embedding extraction.
+    
+    # ── Contrast enhancement ─────────────────────────────────────────────
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    clahe_img = clahe.apply(gray)
+    
+    # ── Edge detection (Canny) ───────────────────────────────────────────
+    # Compute image gradients to find face boundaries
+    edges = cv2.Canny(clahe_img, threshold1=50, threshold2=150)
+    
+    # ── Morphological operations for edge cleanup ────────────────────────
+    # Dilation: thickens edges to bridge small gaps
+    dilated = cv2.dilate(edges, MORPH_KERNEL, iterations=2)
+    
+    # Erosion: removes small noise/isolated pixels
+    cleaned_edges = cv2.erode(dilated, MORPH_KERNEL, iterations=1)
+    
+    # ── Combine original CLAHE with cleaned edge map ──────────────────────
+    # Blend edge information back to enhance facial features
+    # Edges get higher weight where they're strong, but don't override base image
+    combined = cv2.addWeighted(clahe_img, 0.7, cleaned_edges, 0.3)
+    
+    return combined
+
+
+def _prepare_gray(img_bgr: np.ndarray) -> np.ndarray:
+    """Original preprocessing (for backward compatibility if needed)."""
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     return clahe.apply(gray)
 
 
 def _detect_faces_on_normalized(normalized: np.ndarray) -> list[tuple[int, int, int, int]]:
-    """Detect frontal faces on an already-normalized frame (no resize done here)."""
-    gray = _prepare_gray(normalized)
+    """Detect frontal faces on an already-normalized frame using enhanced preprocessing."""
+    # Use edge-enhanced preprocessing for better detection
+    gray = _prepare_gray_with_edge_enhancement(normalized)
     faces = _CASCADE.detectMultiScale(gray, **_DETECT_PARAMS)
     if len(faces) == 0:
         return []
@@ -50,9 +100,17 @@ def _detect_faces_on_normalized(normalized: np.ndarray) -> list[tuple[int, int, 
 def detect_faces(img_bgr: np.ndarray) -> list[tuple[int, int, int, int]]:
     """Detect frontal faces and return bounding boxes as (x, y, w, h).
 
-    Normalizes the frame to TARGET_FRAME_WIDTH before detection so that
-    the cascade parameters are consistent regardless of input resolution.
-    Returned coordinates are in the *original* image's pixel space.
+    Uses Canny edge detection + morphological operations for robust preprocessing.
+    
+    Pipeline:
+    1. Normalize frame to TARGET_FRAME_WIDTH
+    2. Apply CLAHE contrast enhancement
+    3. Compute Canny edges
+    4. Apply morphological operations (dilate → erode)
+    5. Blend edges with original for Haar Cascade
+    6. Detect faces with Haar Cascade
+    
+    Returns coordinates in the *original* image's pixel space.
     """
     normalized = normalize_frame_size(img_bgr)
     faces = _detect_faces_on_normalized(normalized)
@@ -88,11 +146,8 @@ def crop_face(img_bgr: np.ndarray, x: int, y: int, w: int, h: int, padding: floa
 def extract_largest_face(img_bgr: np.ndarray) -> np.ndarray | None:
     """Normalize, detect, and return the largest face crop from a frame.
 
-    Always crops from the *normalized* (640 px wide) frame so that the pixel
-    content of the crop matches what the live attendance stream produces —
-    keeping enrollment and live-detection embeddings comparable.
+    Uses edge-enhanced detection for more reliable face finding.
     """
-    # Normalize once; all subsequent work is done on this frame.
     normalized = normalize_frame_size(img_bgr)
     faces = _detect_faces_on_normalized(normalized)
     if not faces:

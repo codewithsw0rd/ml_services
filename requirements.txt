@@ -16,6 +16,7 @@ packaging==26.0
 pillow==12.1.1
 pydantic==2.12.5
 pydantic_core==2.41.5
+python-dotenv
 python-multipart==0.0.9
 scipy==1.17.1
 starlette==1.0.0

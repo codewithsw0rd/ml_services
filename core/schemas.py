@@ -17,11 +17,6 @@ class AttendanceResponse(BaseModel):
 
 
 class RegisterEmbeddingResponse(BaseModel):
-    """
-    Response for face registration endpoint.
-    Contains the extracted embedding vector (1764 dimensions from HOG)
-    and quality score of the detected face.
-    """
     embedding : list[float]
     quality_score : float
     status : str
@@ -36,6 +31,7 @@ class FaceBox(BaseModel):
     h: int
     status: str  # "identified" | "unknown" | "ambiguous"
     student_id: Optional[str] = None
+    student_name: Optional[str] = None
     confidence: float = 0.0
 
 

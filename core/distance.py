@@ -1,60 +1,16 @@
 import numpy as np
 
+
 def calculate_euclidean(vector1: np.ndarray, vector2: np.ndarray) -> float:
-    """
-    Euclidean distance between two 1-D vectors using only NumPy.
-    
-    Algorithm from Computer Science Syllabus: Distance Metrics
-
-    Formula:  d = √ Σ (v1ᵢ − v2ᵢ)²
-
-    The subtraction, squaring, summation, and square-root are all
-    explicit NumPy primitives — no scipy, no sklearn, nothing else.
-    
-    Works correctly with L2-normalized vectors where Euclidean distance
-    approximates cosine similarity.
-
-    Args:
-        vector1: 1-D float numpy array, shape (D,)
-        vector2: 1-D float numpy array, shape (D,)
-
-    Returns:
-        Scalar float — the straight-line distance in D-dimensional space.
-
-    Raises:
-        ValueError if the vectors have different shapes.
-    """
-    
+    """Calculate Euclidean distance between two vectors."""
     if vector1.shape != vector2.shape:
-        raise ValueError(
-            f"Shape mismatch: {vector1.shape} vs {vector2.shape}."
-            "Both vectors must have the same dimentionality."
-        )
-        
-    diff = vector1-vector2
-    squared = np.square(diff)
-    sum_squares = np.sum(squared)
-    distance = np.sqrt(sum_squares)
+        raise ValueError(f"Shape mismatch: {vector1.shape} vs {vector2.shape}")
     
-    return float(distance)
+    diff = vector1 - vector2
+    return float(np.sqrt(np.sum(np.square(diff))))
 
-def calculate_euclidean_batch(
-    live_vec: np.ndarray,
-    stored_matrix: np.ndarray
-) -> np.ndarray:
-    """
-    Vectorised version: compute distance from live_vec to every row
-    in stored_matrix in one NumPy call — no Python loop needed.
-    
-    Uses NumPy broadcasting for efficient batch computation.
 
-    Args:
-        live_vec:      shape (D,)
-        stored_matrix: shape (N, D)
-
-    Returns:
-        distances: shape (N,)  — one distance per stored vector
-    """
+def calculate_euclidean_batch(live_vec: np.ndarray, stored_matrix: np.ndarray) -> np.ndarray:
+    """Calculate distances from live vector to all stored vectors."""
     diff = stored_matrix - live_vec
-    distances = np.sqrt(np.sum(np.square(diff), axis=1))
-    return distances
+    return np.sqrt(np.sum(np.square(diff), axis=1))

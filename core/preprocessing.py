@@ -1,40 +1,28 @@
 import cv2
 import numpy as np
-from skimage.feature import hog
+import torch
+from facenet_pytorch import InceptionResnetV1
 
-TARGET_SIZE = (100, 100)
-HOG_ORIENTATION = 9
-HOG_PIXELS_PER_CELL = (8, 8)
-HOG_CELLS_PER_BLOCK = (2, 2)
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+FACENET_MODEL = InceptionResnetV1(pretrained='vggface2').to(DEVICE).eval()
 
 
 def prepare_image(img: np.ndarray) -> np.ndarray:
-    """Extract HOG features from face crop and normalize."""
-    if img.ndim == 3:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = img.copy()
+    """Extract FaceNet embedding from face crop and normalize."""
+    resized = cv2.resize(img, (160, 160), interpolation=cv2.INTER_LANCZOS4)
     
-    resized = cv2.resize(gray, TARGET_SIZE, interpolation=cv2.INTER_LANCZOS4)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    equalised = clahe.apply(resized)
-    denoised = cv2.bilateralFilter(equalised, d=5, sigmaColor=50, sigmaSpace=50)
+    img_tensor = torch.from_numpy(resized).float().permute(2, 0, 1).unsqueeze(0)
+    img_tensor = (img_tensor / 255.0 - 0.5) / 0.5
     
-    feature_vec = hog(
-        denoised,
-        orientations=HOG_ORIENTATION,
-        pixels_per_cell=HOG_PIXELS_PER_CELL,
-        cells_per_block=HOG_CELLS_PER_BLOCK,
-        block_norm="L2-Hys",
-        visualize=False,
-        feature_vector=True
-    )
+    with torch.no_grad():
+        embedding = FACENET_MODEL(img_tensor.to(DEVICE))
     
-    norm = np.linalg.norm(feature_vec)
+    embedding_np = embedding.squeeze().cpu().numpy()
+    norm = np.linalg.norm(embedding_np)
     if norm > 0:
-        feature_vec = feature_vec / norm
+        embedding_np = embedding_np / norm
     
-    return feature_vec
+    return embedding_np
 
 
 def prepare_image_flip_pair(img: np.ndarray) -> list[np.ndarray]:

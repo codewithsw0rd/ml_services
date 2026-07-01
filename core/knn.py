@@ -2,8 +2,8 @@ import numpy as np
 from collections import Counter
 from .distance import calculate_euclidean_batch
 
-DISTANCE_THRESHOLD = 0.55
-CONTINUOUS_DISTANCE_THRESHOLD = 0.82
+DISTANCE_THRESHOLD = 0.6
+CONTINUOUS_DISTANCE_THRESHOLD = 0.8
 MIN_STUDENT_MARGIN = 0.06
 
 

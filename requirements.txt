@@ -3,6 +3,7 @@ annotated-types==0.7.0
 anyio==4.13.0
 click==8.3.1
 colorama==0.4.6
+facenet-pytorch
 fastapi==0.135.2
 h11==0.16.0
 idna==3.11
@@ -15,11 +16,12 @@ packaging==26.0
 pillow==12.1.1
 pydantic==2.12.5
 pydantic_core==2.41.5
-scikit-image==0.26.0
+python-multipart==0.0.9
 scipy==1.17.1
 starlette==1.0.0
 tifffile==2026.3.3
+torch>=1.9.0
+torchvision>=0.10.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 uvicorn==0.42.0
-python-multipart==0.0.9

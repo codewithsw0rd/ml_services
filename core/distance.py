@@ -3,11 +3,16 @@ import numpy as np
 def calculate_euclidean(vector1: np.ndarray, vector2: np.ndarray) -> float:
     """
     Euclidean distance between two 1-D vectors using only NumPy.
+    
+    Algorithm from Computer Science Syllabus: Distance Metrics
 
     Formula:  d = √ Σ (v1ᵢ − v2ᵢ)²
 
     The subtraction, squaring, summation, and square-root are all
     explicit NumPy primitives — no scipy, no sklearn, nothing else.
+    
+    Works correctly with L2-normalized vectors where Euclidean distance
+    approximates cosine similarity.
 
     Args:
         vector1: 1-D float numpy array, shape (D,)
@@ -40,9 +45,8 @@ def calculate_euclidean_batch(
     """
     Vectorised version: compute distance from live_vec to every row
     in stored_matrix in one NumPy call — no Python loop needed.
-
-    This is what find_match() actually calls internally; the scalar
-    version above exists for clarity and unit-testing.
+    
+    Uses NumPy broadcasting for efficient batch computation.
 
     Args:
         live_vec:      shape (D,)

@@ -26,7 +26,7 @@ def _decode_image(image_bytes: bytes) -> np.ndarray:
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Image file is empty. Please upload a valid image.")
 
-np_arr = np.frombuffer(image_bytes, np.uint8)
+    np_arr = np.frombuffer(image_bytes, np.uint8)
     if len(np_arr) == 0:
         raise HTTPException(status_code=400, detail="Could not read image data. File may be corrupted.")
 

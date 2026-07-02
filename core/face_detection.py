@@ -6,9 +6,9 @@ _CASCADE = cv2.CascadeClassifier(
 )
 
 _DETECT_PARAMS = {
-    "scaleFactor": 1.08,
-    "minNeighbors": 4,
-    "minSize": (40, 40),
+    "scaleFactor": 1.05,
+    "minNeighbors": 3,
+    "minSize": (30, 30),
 }
 
 TARGET_FRAME_WIDTH = 640
@@ -69,11 +69,10 @@ def crop_face(img_bgr: np.ndarray, x: int, y: int, w: int, h: int, padding: floa
 
 def extract_largest_face(img_bgr: np.ndarray) -> np.ndarray | None:
     """Extract largest detected face from frame."""
-    normalized, _ = normalize_frame_size(img_bgr)
-    faces = _detect_faces_on_normalized(normalized)
+    faces = detect_faces(img_bgr)
     
     if not faces:
         return None
 
     x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-    return crop_face(normalized, x, y, w, h)
+    return crop_face(img_bgr, x, y, w, h)

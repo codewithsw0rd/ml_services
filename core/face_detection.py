@@ -6,21 +6,22 @@ _CASCADE = cv2.CascadeClassifier(
 )
 
 _DETECT_PARAMS = {
-    "scaleFactor": 1.08,
-    "minNeighbors": 4,
-    "minSize": (40, 40),
+    "scaleFactor": 1.05,
+    "minNeighbors": 3,
+    "minSize": (30, 30),
 }
 
 TARGET_FRAME_WIDTH = 640
 
 
-def normalize_frame_size(img_bgr: np.ndarray, target_width: int = TARGET_FRAME_WIDTH) -> np.ndarray:
-    """Resize frame to consistent width for detection."""
+def normalize_frame_size(img_bgr: np.ndarray, target_width: int = TARGET_FRAME_WIDTH) -> tuple[np.ndarray, float]:
+    """Resize frame to consistent width for detection. Returns (normalized_frame, scale_factor)."""
     h, w = img_bgr.shape[:2]
     if w == target_width:
-        return img_bgr
+        return img_bgr, 1.0
     scale = target_width / w
-    return cv2.resize(img_bgr, (target_width, int(h * scale)), interpolation=cv2.INTER_AREA)
+    resized = cv2.resize(img_bgr, (target_width, int(h * scale)), interpolation=cv2.INTER_AREA)
+    return resized, scale
 
 
 def _prepare_gray(img_bgr: np.ndarray) -> np.ndarray:
@@ -38,18 +39,16 @@ def _detect_faces_on_normalized(normalized: np.ndarray) -> list[tuple[int, int, 
 
 
 def detect_faces(img_bgr: np.ndarray) -> list[tuple[int, int, int, int]]:
-    """Detect faces and return bounding boxes as (x, y, w, h)."""
-    normalized = normalize_frame_size(img_bgr)
+    """Detect faces and return bounding boxes as (x, y, w, h) in original image coordinates."""
+    normalized, scale = normalize_frame_size(img_bgr)
     faces = _detect_faces_on_normalized(normalized)
     
-    if not faces:
-        return []
+    if not faces or scale == 1.0:
+        return faces
 
     # Scale coordinates back to original image space
-    scale = normalized.shape[1] / img_bgr.shape[1]
-    if scale != 1.0:
-        inv = 1.0 / scale
-        faces = [(int(x * inv), int(y * inv), int(w * inv), int(h * inv)) for (x, y, w, h) in faces]
+    inv_scale = 1.0 / scale
+    faces = [(int(x * inv_scale), int(y * inv_scale), int(w * inv_scale), int(h * inv_scale)) for (x, y, w, h) in faces]
 
     return faces
 
@@ -70,11 +69,10 @@ def crop_face(img_bgr: np.ndarray, x: int, y: int, w: int, h: int, padding: floa
 
 def extract_largest_face(img_bgr: np.ndarray) -> np.ndarray | None:
     """Extract largest detected face from frame."""
-    normalized = normalize_frame_size(img_bgr)
-    faces = _detect_faces_on_normalized(normalized)
+    faces = detect_faces(img_bgr)
     
     if not faces:
         return None
 
     x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-    return crop_face(normalized, x, y, w, h)
+    return crop_face(img_bgr, x, y, w, h)

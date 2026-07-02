@@ -1,9 +1,14 @@
 import json
+import os
+from dotenv import load_dotenv
 
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 
+from core.preprocessing import prepare_image, calculate_face_quality, prepare_image_flip_pair
+from core.knn import find_match, find_best_student_match, CONTINUOUS_DISTANCE_THRESHOLD
+from core.face_detection import detect_faces, extract_largest_face, crop_face
 from core.schemas import (
     AttendanceResponse,
     RegisterEmbeddingResponse,
@@ -11,9 +16,8 @@ from core.schemas import (
     ContinuousDetectionResponse,
     FaceBox,
 )
-from core.preprocessing import prepare_image, calculate_face_quality, prepare_image_flip_pair
-from core.knn import find_match, find_best_student_match, CONTINUOUS_DISTANCE_THRESHOLD
-from core.face_detection import detect_faces, extract_largest_face, crop_face
+
+load_dotenv()
 
 app = FastAPI(title="Face Recognition ML Service", version="1.2.1")
 
@@ -37,7 +41,7 @@ def _decode_image(image_bytes: bytes) -> np.ndarray:
 
 @app.post("/register-embedding", response_model=RegisterEmbeddingResponse)
 async def register_embedding(image: UploadFile = File(...)):
-    """Extract a HOG embedding from the largest face in an uploaded image."""
+    """Extract FaceNet embedding from largest face in image."""
     img_bgr = _decode_image(await image.read())
     face_crop = extract_largest_face(img_bgr)
 
@@ -197,3 +201,21 @@ async def continuous_detection(
         nearest_distance=round(overall_nearest, 6) if overall_nearest != float("inf") else None,
         faces=face_boxes,
     )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    port = int(os.getenv("PORT", 8001))
+    host = "0.0.0.0"
+    
+    print(f"\n{'='*60}")
+    print(f"Starting ML Service")
+    print(f"{'='*60}")
+    print(f"Host: {host}:{port}")
+    print(f"URL: http://localhost:{port}")
+    print(f"Health check: http://localhost:{port}/health")
+    print(f"API Docs: http://localhost:{port}/docs")
+    print(f"{'='*60}\n")
+    
+    uvicorn.run(app, host=host, port=port)
